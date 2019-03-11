@@ -57,9 +57,7 @@
 #define	SERVO_VERTICAL_PIN		0
 #define	SERVO_HORIZONTAL_PIN	0
 
-//FLAGS TECLADO
-#define FLAG_KEY_PRESSED 0x01
-#define FLAG_TMR_TIMEOUT 0x02
+
 
 // FLAGS FSM CONTROL DE JUEGO Y TORRETA
 // ATENCION: Valores a modificar por el alumno

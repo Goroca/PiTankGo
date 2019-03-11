@@ -25,7 +25,6 @@
 #define FLAG_SERVO_LEFT		0x01
 #define FLAG_SERVO_RIGHT	0x02
 
-//#define	SERVO_PIN			13
 #define	SERVO_PIN			18
 
 // https://github.com/WiringPi/WiringPi/blob/master/wiringPi/softPwm.c
