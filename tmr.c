@@ -25,7 +25,7 @@ tmr_init (tmr_t* this, notify_func_t isr) {
     this->se.sigev_value.sival_ptr = &(this->timerid);
     this->se.sigev_notify_function = isr;
     this->se.sigev_notify_attributes = NULL;
-    timer_create (CLOCK_REALTIME, &(this->se), &(this->timerid));  /* o CLOCK_MONOTONIC si se soporta */
+    timer_create (CLOCK_REALTIME, &(this->se), &(this->timerid));
 }
 
 void

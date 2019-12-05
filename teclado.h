@@ -22,10 +22,6 @@
 #define NUM_COLS 4
 #define NUM_ROWS 4
 
-//FLAGS TECLADO
-#define FLAG_KEY_PRESSED 0x01
-#define FLAG_TMR_TIMEOUT 0x02
-
 enum columns_values {
 	COL_1,
 	COL_2,

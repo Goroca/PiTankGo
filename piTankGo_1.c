@@ -1,19 +1,17 @@
+//Librerias necesarias
 #include "piTankGo_1.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
-#include "piTankGoLib.h"
-#include <string.h>
 #include <wiringPi.h>
-#include <stdlib.h>
-#include "kbhit.h"
+#include <wiringSerial.h>
 #include <softTone.h>
 #include <pthread.h>
 #include "fsm.h"
 #include "tmr.h"
 #include "teclado.h"
-#include "servo.h"
+#include "kbhit.h"
+#include "piTankGoLib.h"
 
 int frecuenciaDespacito[160] = { 0, 1175, 1109, 988, 740, 740, 740, 740, 740,
 		740, 988, 988, 988, 988, 880, 988, 784, 0, 784, 784, 784, 784, 784, 988,
@@ -135,38 +133,30 @@ int tiemposImpacto[32] = { 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
 		10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
 		10 };
 
-int flags_juego = 0;
+int flags_torreta = 0;
 int flags_player = 0;
 int flags_teclado = 0;
-int flags_servo = 0;
+
 //------------------------------------------------------
 // FUNCIONES DE CONFIGURACION/INICIALIZACION
 //------------------------------------------------------
 
-// int ConfiguracionSistema (TipoSistema *p_sistema): procedimiento de configuracion del sistema.
-// Realizará, entra otras, todas las operaciones necesarias para:
-// configurar el uso de posibles librerías (e.g. Wiring Pi),
-// configurar las interrupciones externas asociadas a los pines GPIO,
-// configurar las interrupciones periódicas y sus correspondientes temporizadores,
-// crear, si fuese necesario, los threads adicionales que pueda requerir el sistema
 int ConfiguraSistema(TipoSistema* p_sistema) {
 
 	int result = 0;
-	result= wiringPiSetupGpio();
+	wiringPiSetupGpio();
 	pinMode(PLAYER_PWM_PIN, OUTPUT);
-
+	softToneCreate(PLAYER_PWM_PIN);
 	p_sistema->player.tmr = tmr_new(timer_player_duracion_nota_actual_isr);
+	p_sistema->torreta.tmr = tmr_new(timer_duracion_disparo_isr);
+
 	return result;
 }
 
-// int InicializaSistema (TipoSistema *p_sistema): procedimiento de inicializacion del sistema.
-// Realizará, entra otras, todas las operaciones necesarias para:
-// la inicializacion de los diferentes elementos de los que consta nuestro sistema,
-// la torreta, los efectos, etc.
-// igualmente arrancará el thread de exploración del teclado del PC
 int InicializaSistema(TipoSistema *p_sistema) {
 	int result = 0;
 
+	//Incializa los diferentes efectos
 	InicializaEfecto(&p_sistema->player.efecto_Despacito, "DESPACITO",
 			frecuenciaDespacito, tiempoDespacito, 160);
 	InicializaEfecto(&p_sistema->player.efecto_GOT, "GOT", frecuenciaGOT,
@@ -180,27 +170,65 @@ int InicializaSistema(TipoSistema *p_sistema) {
 	InicializaEfecto(&p_sistema->player.efecto_impacto, "IMPACTO",
 			frecuenciasImpacto, tiemposImpacto, 32);
 
-	p_sistema->player.p_efecto = &p_sistema->player.efecto_GOT;
-
-	InicializaPlayer(&p_sistema->player);
+	//Inicializamos las diferentes subrutinas
 	InicializaTeclado(&p_sistema->teclado);
-	InicializaServo(&p_sistema->servo);
+	InicializaJoystick(&p_sistema->joystick);
+	InicializaTorreta(&p_sistema->torreta);
 
-
-	// Lanzamos thread para exploracion del teclado convencional del PC
+	// Lanzamos thread para exploracion del teclado del PC
 	result = piThreadCreate(thread_explora_teclado_PC);
-
 	if (result != 0) {
 		printf("Thread didn't start!!!\n");
 		return -1;
 	}
-
+	// Lanzamos thread para exploracion del puerto serie
+	result = piThreadCreate(thread_UART);
+	if (result != 0) {
+		printf("Thread didn't start!!!\n");
+		return -1;
+	}
 	return result;
 }
 
-//------------------------------------------------------
-// SUBRUTINAS DE ATENCION A LAS INTERRUPCIONES
-//------------------------------------------------------
+PI_THREAD(thread_UART) {
+	c = 0;
+	key = 0; //Sirve para no considerar la primera ristra de bits
+	//Inicializa el puerto serie a 115200 baudios
+	fd =	serialOpen(	"/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_857343233313519170D1-if00",115200);
+
+
+	while (1) {
+		c = 0;
+		while (serialDataAvail(fd)) {
+			int m = serialGetchar(fd);
+			if (m != -1)
+				m &= 7;
+			if (c < 1 && key == 1) {
+				//Toma una decision dependiendo del evento producido
+				/* #define BUTTON    01 || %001
+				 * #define UP        02 || %010
+				 * #define DOWN      03 || %011
+				 * #define LEFT      04 || %100
+				 * #define RIGHT     05 || %101
+				 */
+				if (m == 1)
+					flags_torreta |= FLAG_TRIGGER_BUTTON;
+				if (m == 2)
+					flags_torreta |= FLAG_JOYSTICK_UP;
+				if (m == 3)
+					flags_torreta |= FLAG_JOYSTICK_DOWN;
+				if (m == 4)
+					flags_torreta |= FLAG_JOYSTICK_LEFT;
+				if (m == 5)
+					flags_torreta |= FLAG_JOYSTICK_RIGHT;
+			}
+			if (m != 0)
+				c++;
+		}
+		key = 1;
+		delay(500);
+	}
+}
 
 PI_THREAD (thread_explora_teclado_PC) {
 	int teclaPulsada;
@@ -244,17 +272,20 @@ void delay_until(unsigned int next) {
 		delay(next - now);
 	}
 }
-
+//Hebra Principal
 int main() {
+	fd =	serialOpen(	"/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_857343233313519170D1-if00",115200);
 
+	delay(1000);
 	TipoSistema sistema;
 
 	unsigned int next;
 
-// Configuracion e inicializacion del sistema
+	// Configuracion e Inicializacion del sistema
 	ConfiguraSistema(&sistema);
 	InicializaSistema(&sistema);
-	teclado = &sistema.teclado;
+
+	//PLAYER
 	fsm_trans_t reproductor[] =
 			{ { WAIT_START, CompruebaStartDisparo, WAIT_NEXT,
 					InicializaPlayDisparo }, { WAIT_START,
@@ -268,14 +299,14 @@ int main() {
 
 	fsm_t* player_fsm = fsm_new(WAIT_START, reproductor, &(sistema.player));
 
-	//Teclado
+	//TECLADO
+	teclado = &sistema.teclado;
 
-	fsm_trans_t columns[] =
-			{ { KEY_COL_1, CompruebaColumnTimeout, KEY_COL_2, col_2 }, {
-					KEY_COL_2, CompruebaColumnTimeout, KEY_COL_3, col_3 }, {
-					KEY_COL_3, CompruebaColumnTimeout, KEY_COL_4, col_4 }, {
-					KEY_COL_4, CompruebaColumnTimeout, KEY_COL_1, col_1 }, { -1,
-					NULL, -1, NULL }, };
+	fsm_trans_t columns[] = { { KEY_COL_1, CompruebaColumnTimeout, KEY_COL_2,
+			col_2 }, { KEY_COL_2, CompruebaColumnTimeout, KEY_COL_3, col_3 }, {
+			KEY_COL_3, CompruebaColumnTimeout, KEY_COL_4, col_4 }, { KEY_COL_4,
+			CompruebaColumnTimeout, KEY_COL_1, col_1 }, { -1,
+	NULL, -1, NULL }, };
 
 	fsm_trans_t keypad[] = { { KEY_WAITING, key_pressed, KEY_WAITING,
 			process_key }, { -1, NULL, -1, NULL }, };
@@ -283,40 +314,33 @@ int main() {
 	fsm_t* columns_fsm = fsm_new(KEY_COL_1, columns, &sistema.teclado);
 	fsm_t* keypad_fsm = fsm_new(KEY_WAITING, keypad, &sistema.teclado);
 
+	//TORRETA
+	fsm_trans_t torreta[] =
+			{ { WAIT_START, CompruebaComienzo, WAIT_MOVE, ComienzaSistema }, {
+					WAIT_MOVE, CompruebaJoystickUp, WAIT_MOVE,
+					MueveTorretaArriba }, { WAIT_MOVE, CompruebaJoystickLeft,
+					WAIT_MOVE, MueveTorretaIzquierda }, { WAIT_MOVE,
+					CompruebaJoystickRight, WAIT_MOVE, MueveTorretaDerecha }, {
+					WAIT_MOVE, CompruebaJoystickDown, WAIT_MOVE,
+					MueveTorretaAbajo }, { WAIT_MOVE, CompruebaTriggerButton,
+					TRIGGER_BUTTON, DisparoIR }, { TRIGGER_BUTTON,
+					CompruebaTimeoutDisparo, WAIT_MOVE, FinalDisparoIR }, {
+					TRIGGER_BUTTON, CompruebaImpacto, WAIT_MOVE,
+					ImpactoDetectado }, { WAIT_MOVE, CompruebaFinalJuego,
+					WAIT_END, FinalizaJuego }, { -1, NULL, -1, NULL }, };
 
-	fsm_trans_t teclado_PC[] = { { WAIT_KEY, comprueba_teclado_PC, WAIT_KEY,
-			procesa_teclado_PC }, { -1, NULL, -1, NULL }, };
-
-	fsm_trans_t servo_basico[] = { { WAIT_KEY, CompruebaIzquierda, WAIT_KEY,
-			MueveServoIzquierda }, { WAIT_KEY, CompruebaDerecha, WAIT_KEY,
-			MueveServoDerecha }, { -1, NULL, -1, NULL }, };
-
-	fsm_t* teclado_PC_fsm = fsm_new(WAIT_KEY, teclado_PC, NULL);
-	fsm_t* servo_fsm = fsm_new(WAIT_KEY, servo_basico, &sistema.servo);
-
-	next = millis();
-	while (1) {
-		fsm_fire(teclado_PC_fsm);
-		fsm_fire(servo_fsm);
-
-		next += CLK_MS;
-		delay_until(next);
-	}
-
-	return 0;
+	fsm_t* torreta_fsm = fsm_new(WAIT_START, torreta, &sistema.torreta);
 
 	next = millis();
+
+	//Maquinas de Estado
 	while (1) {
 		fsm_fire(player_fsm);
 		fsm_fire(columns_fsm);
 		fsm_fire(keypad_fsm);
-
-		// A completar por el alumno...
-		// ...
-
+		fsm_fire(torreta_fsm);
 		next += CLK_MS;
 		delay_until(next);
 	}
-
 	return 0;
 }

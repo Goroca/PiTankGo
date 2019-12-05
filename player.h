@@ -26,21 +26,19 @@ typedef struct {
 } TipoEfecto;
 
 typedef struct {
-	int posicion_nota_actual;	// Valor correspondiente a la posicion de la nota actual en los arrays de frecuencias y duraciones
+	int posicion_nota_actual; 	// Valor correspondiente a la posicion de la nota actual en los arrays de frecuencias y duraciones
 	int frecuencia_nota_actual; // Valor correspondiente a la frecuencia de la nota actual
-	int duracion_nota_actual; // Valor correspondiente a la duracion de la nota actual
+	int duracion_nota_actual;   // Valor correspondiente a la duracion de la nota actual
 
 	TipoEfecto* p_efecto; // Variable tipo puntero que apunta al efecto en particular que se quiere reproducir
 
-	TipoEfecto efecto_disparo; // Efecto de disparo
-	TipoEfecto efecto_impacto; // Efecto de impacto
-	TipoEfecto efecto_GOT;     // Efecto de GOT
+	TipoEfecto efecto_disparo;   // Efecto de disparo
+	TipoEfecto efecto_impacto;   // Efecto de impacto
+	TipoEfecto efecto_GOT;       // Efecto de GOT
 	TipoEfecto efecto_Despacito; // Efecto de Despacito
 	TipoEfecto efecto_Tetris;
 	TipoEfecto efecto_Starwars;
-	tmr_t* tmr;               //Temporizador Notas
-	// A completar por el alumno (declaracion del temporizador para control duracion notas)
-	// ...
+	tmr_t* tmr;                  //Temporizador Notas
 } TipoPlayer;
 
 extern int flags_player;

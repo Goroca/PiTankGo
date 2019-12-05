@@ -15,7 +15,7 @@
 #include "kbhit.h" // Para poder detectar teclas pulsadas sin bloqueo y leer las teclas pulsadas
 #include "player.h"
 #include "torreta.h"
-#include "servo.h"
+#include "joystick.h"
 
 // Posibles estados de las FSMs
 enum fsm_state {
@@ -34,9 +34,9 @@ enum fsm_state {
 
 typedef struct {
 	TipoTorreta torreta; // Objeto para el control de la torreta
+	TipoJoystick joystick;
 	TipoPlayer player; // Reproductor de efectos
-	TipoTeclado teclado; //Teclado matricial
-	TipoServo servo;
+	TipoTeclado teclado;
 	int debug; // Variable que habilita o deshabilita la impresion de mensajes por salida estandar
 } TipoSistema;
 
@@ -49,6 +49,12 @@ int InicializaSistema (TipoSistema *p_sistema);
 //------------------------------------------------------
 // FUNCIONES LIGADAS A THREADS ADICIONALES
 //------------------------------------------------------
+int c;
+int key;
+int fd;
+
+
 PI_THREAD(thread_explora_teclado_PC);
+PI_THREAD(thread_UART);
 
 #endif /* _PITANKGO_1_H_ */

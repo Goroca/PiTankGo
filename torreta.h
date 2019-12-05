@@ -11,31 +11,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wiringPi.h>
+#include <softPwm.h>
 
 #include "piTankGoLib.h"
-/*
+
+
 typedef struct {
 	int inicio; // Valor correspondiente a la posicion inicial del servo
 	int incremento; // Cuantía en que se incrementa el valor de la posicion con cada movimiento del servo
 	int minimo; // Valor mínimo correspondiente a la posicion del servo
 	int maximo; // Valor maximo correspondiente a la posicion del servo
+	int posicion; // Posicion actual del servo
 } TipoServo;
-*/
-typedef struct {
-	int x; // Coordenada x correspondiente a la posicion del servo horizontal
-	int y; // Coordenada y correspondiente a la posicion del servo vertical
-} TipoPosicionTorreta;
+
+
 
 typedef struct {
-	TipoPosicionTorreta posicion;
-	//TipoServo servo_x;
-	//TipoServo servo_y;
-
-	// A completar por el alumno (declaracion del temporizador para control duracion disparo)
-	// ...
+	int marcador;
+	TipoServo servo_x;
+	TipoServo servo_y;
+	tmr_t* tmr;
 } TipoTorreta;
 
-extern int flags_juego;
 
 // Prototipos de procedimientos de inicializacion de los objetos especificos
 void InicializaTorreta (TipoTorreta *p_torreta);
@@ -62,7 +59,9 @@ void FinalDisparoIR (fsm_t* this);
 void ImpactoDetectado (fsm_t* this);
 void FinalizaJuego (fsm_t* this);
 
+void impacto(void);
+
 // Prototipos de procedimientos de atencion a las interrupciones
-//static void timer_duracion_disparo_isr (union sigval value);
+void timer_duracion_disparo_isr (union sigval value);
 
 #endif /* _TORRETA_H_ */

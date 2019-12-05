@@ -13,26 +13,10 @@
 #include "fsm.h"
 #include "tmr.h"
 
-#define PIN 1;
 //------------------------------------------------------
 // PROCEDIMIENTOS DE INICIALIZACION DE LOS OBJETOS ESPECIFICOS
 //------------------------------------------------------
 
-//------------------------------------------------------
-//void InicializaEfecto (TipoEfecto *p_efecto)
-//
-// Descripcion: inicializa los parametros del objeto efecto.
-// Ejemplo de uso:
-//
-// ...
-//
-// TipoEfecto efecto_demo;
-//
-// if ( InicializaEfecto (&efecto_demo, "DISPARO", frecuenciasDisparo, tiemposDisparo, 16) < 0 ) {
-// 		printf("\n[ERROR!!!][InicializaEfecto]\n");
-// 		fflush(stdout);
-// 		}
-//------------------------------------------------------
 int InicializaEfecto(TipoEfecto *p_efecto, char *nombre, int *array_frecuencias,
 		int *array_duraciones, int num_notas) {
 	strcpy(p_efecto->nombre, nombre);
@@ -50,7 +34,6 @@ int InicializaEfecto(TipoEfecto *p_efecto, char *nombre, int *array_frecuencias,
 }
 
 // Procedimiento de inicializacion del objeto especifico
-// Nota: parte inicialización común a InicializaPlayDisparo y InicializaPlayImpacto
 void InicializaPlayer(TipoPlayer *p_player) {
 
 	p_player->posicion_nota_actual = 0;
@@ -79,6 +62,7 @@ int CompruebaStartImpacto(fsm_t* this) {
 	result = (flags_player & FLAG_START_IMPACTO);
 	piUnlock(PLAYER_FLAGS_KEY);
 	return result;
+
 }
 
 int CompruebaNuevaNota(fsm_t* this) {
@@ -120,7 +104,6 @@ int CompruebaFinalEfecto(fsm_t* this) {
 //-----------------------------------------------------------
 
 void InicializaPlayDisparo(fsm_t* this) {
-
 	TipoPlayer* p_player = (TipoPlayer*) this->user_data;
 	piLock(PLAYER_FLAGS_KEY);
 	flags_player &= ~FLAG_START_DISPARO;
@@ -133,6 +116,7 @@ void InicializaPlayDisparo(fsm_t* this) {
 }
 
 void InicializaPlayImpacto(fsm_t* this) {
+	printf("IMPACTO!\n");
 
 	piLock(PLAYER_FLAGS_KEY);
 	flags_player &= ~FLAG_START_IMPACTO;
@@ -151,15 +135,13 @@ void ComienzaNuevaNota(fsm_t* this) {
 	flags_player &= ~FLAG_PLAYER_END;
 	piUnlock(PLAYER_FLAGS_KEY);
 
-	softToneCreate(PLAYER_PWM_PIN);
 	softToneWrite(PLAYER_PWM_PIN, p_player->frecuencia_nota_actual);
 
 	tmr_startms(p_player->tmr, p_player->duracion_nota_actual);
 
 	piLock(STD_IO_BUFFER_KEY);
 	printf("[PLAYER][InicializaPlayer][NOTA %d][FREC %d][DURA %d]\n",
-			p_player->posicion_nota_actual + 1,
-			p_player->frecuencia_nota_actual, p_player->duracion_nota_actual);
+			p_player->posicion_nota_actual + 1,	p_player->frecuencia_nota_actual, p_player->duracion_nota_actual);
 	piUnlock(STD_IO_BUFFER_KEY);
 
 }
@@ -168,11 +150,6 @@ void ActualizaPlayer(fsm_t* this) {
 
 	TipoPlayer* p_player = (TipoPlayer*) this->user_data;
 	p_player->posicion_nota_actual++;
-	p_player->frecuencia_nota_actual =
-			p_player->p_efecto->frecuencias[p_player->posicion_nota_actual];
-	p_player->duracion_nota_actual =
-			p_player->p_efecto->duraciones[p_player->posicion_nota_actual];
-
 	piLock(PLAYER_FLAGS_KEY);
 	flags_player &= ~FLAG_NOTA_TIMEOUT;
 	piUnlock(PLAYER_FLAGS_KEY);
@@ -184,10 +161,11 @@ void ActualizaPlayer(fsm_t* this) {
 
 	}
 	piLock(STD_IO_BUFFER_KEY);
-	if (p_player->posicion_nota_actual + 1 <= p_player->p_efecto->num_notas)
-		printf("[PLAYER][ActualizaPlayer][Nueva Nota (%d DE %d)]\n",
-				p_player->posicion_nota_actual + 1,
-				p_player->p_efecto->num_notas);
+	if (p_player->posicion_nota_actual + 1 <= p_player->p_efecto->num_notas){
+		p_player->frecuencia_nota_actual =	p_player->p_efecto->frecuencias[p_player->posicion_nota_actual];
+		p_player->duracion_nota_actual =	p_player->p_efecto->duraciones[p_player->posicion_nota_actual];
+		printf("[PLAYER][ActualizaPlayer][Nueva Nota (%d DE %d)]\n", p_player->posicion_nota_actual + 1,	p_player->p_efecto->num_notas);
+	}
 	piUnlock(STD_IO_BUFFER_KEY);
 }
 
@@ -196,7 +174,6 @@ void FinalEfecto(fsm_t* this) {
 	flags_player &= ~FLAG_PLAYER_END;
 	piUnlock(PLAYER_FLAGS_KEY);
 
-	softToneCreate(PLAYER_PWM_PIN);
 	softToneWrite(PLAYER_PWM_PIN, 0);
 
 	piLock(STD_IO_BUFFER_KEY);
